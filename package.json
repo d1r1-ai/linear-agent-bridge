@@ -21,16 +21,16 @@
     "webhook",
     "plugin"
   ],
-  "author": "tokezooo",
+  "author": "D1R1 AI",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/tokezooo/linear-agent-bridge"
+    "url": "https://github.com/d1r1-ai/linear-agent-bridge"
   },
   "bugs": {
-    "url": "https://github.com/tokezooo/linear-agent-bridge/issues"
+    "url": "https://github.com/d1r1-ai/linear-agent-bridge/issues"
   },
-  "homepage": "https://github.com/tokezooo/linear-agent-bridge#readme",
+  "homepage": "https://github.com/d1r1-ai/linear-agent-bridge#readme",
   "openclaw": {
     "extensions": [
       "./dist/index.js"

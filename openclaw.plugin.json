@@ -2,6 +2,15 @@
   "id": "linear-agent-bridge",
   "name": "Linear",
   "description": "Linear agent webhook bridge for OpenClaw dev runs",
+  "activation": {
+    "onStartup": true,
+    "onRoutes": [
+      "plugins/linear/linear",
+      "plugins/linear/api",
+      "plugins/linear/oauth/callback",
+      "plugins/linear/oauth/exchange"
+    ]
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -11,19 +20,19 @@
         "description": "Agent ID to handle Linear issues (default: 'dev')"
       },
       "linearWebhookSecret": {
-        "type": "string",
+        "$ref": "#/$defs/secretString",
         "description": "Linear webhook signing secret for signature verification"
       },
       "linearApiKey": {
-        "type": "string",
+        "$ref": "#/$defs/secretString",
         "description": "Linear OAuth token for posting activities and updating issues"
       },
       "linearOauthClientId": {
-        "type": "string",
+        "$ref": "#/$defs/secretString",
         "description": "Linear OAuth client ID for code exchange/refresh"
       },
       "linearOauthClientSecret": {
-        "type": "string",
+        "$ref": "#/$defs/secretString",
         "description": "Linear OAuth client secret for code exchange/refresh"
       },
       "linearOauthRedirectUri": {
@@ -106,6 +115,39 @@
       "apiCorsAllowCredentials": {
         "type": "boolean",
         "description": "Set Access-Control-Allow-Credentials on /plugins/linear/api responses"
+      }
+    },
+    "$defs": {
+      "secretString": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source",
+              "provider",
+              "id"
+            ],
+            "properties": {
+              "source": {
+                "enum": [
+                  "env",
+                  "file",
+                  "exec"
+                ]
+              },
+              "provider": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              }
+            }
+          }
+        ]
       }
     }
   },

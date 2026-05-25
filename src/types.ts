@@ -12,6 +12,8 @@ export interface OpenClawPluginApi {
   callGateway?: unknown;
   registerHttpRoute: (opts: {
     path: string;
+    auth?: "gateway" | "plugin";
+    match?: "exact" | "prefix";
     handler: (
       req: IncomingMessage,
       res: ServerResponse,

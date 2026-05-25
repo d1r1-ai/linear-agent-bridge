@@ -31,7 +31,7 @@ export function createApiRouter(
   api: OpenClawPluginApi,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
-    const cfg = normalizeCfg(api.pluginConfig);
+    const cfg = normalizeCfg(api.pluginConfig, api.config);
     const preflight = handleCorsPreflight({
       req,
       res,

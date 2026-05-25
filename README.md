@@ -5,6 +5,7 @@ An [OpenClaw](https://github.com/nicepkg/openclaw) plugin that turns Linear's Ag
 ## Table of Contents
 
 - [How It Works](#how-it-works)
+- [What the Agent Does](#what-the-agent-does)
 - [Features](#features)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
@@ -64,6 +65,19 @@ An [OpenClaw](https://github.com/nicepkg/openclaw) plugin that turns Linear's Ag
 5. During execution, the agent calls back to the plugin's API proxy to post thoughts, update plans, create sub-issues, delegate, query data, and post final responses
 6. When the agent finishes, the token is revoked and the response is posted to Linear
 
+## What the Agent Does
+
+This plugin turns a Linear application user into an OpenClaw developer agent. In day-to-day use, teammates interact with it from Linear:
+
+- Mention the app user in an issue comment to ask for analysis, implementation, review, or triage.
+- Delegate an issue to the app user when the issue should become an agent-owned work item.
+- Reply in the agent session thread to provide follow-up instructions or answer elicitation questions.
+- Ask the agent to close an issue when the work is complete, or rely on explicit task instructions that tell the agent to close after verification.
+
+The agent is expected to work like a Linear-native engineering teammate: read the issue and recent comments, choose the configured repository, update the visible session plan, post progress as activities, ask for missing information when blocked, create or link follow-up issues when useful, and move the issue through the workflow only when its instructions justify that action.
+
+The plugin is deliberately conservative about issue state changes. It can move new delegated work into a started state and can close tasks through `issue/close`, but it should not silently mark work as done just because a session ended. Completion should be explicit in the user's instruction, the agent's final result, or a close-intent command.
+
 ## Features
 
 - **Full Linear Agent Protocol** — implements `created`, `prompted`, `stop` signal, agent plans, activities (thought/action/elicitation/response/error), proactive sessions
@@ -91,7 +105,7 @@ An [OpenClaw](https://github.com/nicepkg/openclaw) plugin that turns Linear's Ag
 npm install linear-agent-bridge
 
 # Or clone and build from source
-git clone https://github.com/tokezooo/linear-agent-bridge.git
+git clone https://github.com/d1r1-ai/linear-agent-bridge.git
 cd linear-agent-bridge
 npm install
 npm run build
@@ -113,9 +127,11 @@ The plugin registers itself with OpenClaw via the `openclaw` field in `package.j
 
 1. Go to **Linear Settings** > **API** > **Applications** > [Create new](https://linear.app/settings/api/applications/new)
 2. Set a recognizable name (this is how users will see the agent in mentions and filters)
-3. Enable **Webhooks**
-4. Under webhook events, select **Agent session events**
-5. Set the webhook URL to: `https://<your-host>/plugins/linear/linear`
+3. Set the OAuth redirect URL to: `https://<your-host>/plugins/linear/oauth/callback`
+4. Enable **Webhooks**
+5. Under webhook events, select **Agent session events**. If your app should react to comments in existing agent threads, also enable **Issues** and **Comments** events.
+6. Set the webhook URL to: `https://<your-host>/plugins/linear/linear`
+7. Copy the **Client ID**, **Client secret**, and **Webhook signing secret**. Store them in your server's secret store, not directly in the repo.
 
 ### 2. OAuth Installation
 
@@ -148,6 +164,15 @@ The token set is stored in `linearTokenStorePath` (default `~/.openclaw/workspac
 
 In your Linear application settings, copy the **Webhook signing secret**. This is used for HMAC-SHA256 signature verification of incoming webhooks.
 
+### 5. Smoke-Test the Install
+
+After the OAuth redirect finishes, the callback should return a JSON response with `ok: true` and `stored: true`. Then verify:
+
+- The token store file exists at `linearTokenStorePath`.
+- A GraphQL `viewer` query returns the Linear app user.
+- A test issue can mention or delegate to the app user.
+- The webhook endpoint returns `401 Unauthorized` for unsigned manual `curl` requests. That is expected; Linear webhooks include the signature header.
+
 ## Plugin Configuration
 
 Configure the plugin in your OpenClaw config under the plugin's section. All options are defined in `openclaw.plugin.json`.
@@ -156,12 +181,14 @@ Configure the plugin in your OpenClaw config under the plugin's section. All opt
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `linearWebhookSecret` | `string` | Webhook signing secret for HMAC verification |
+| `linearWebhookSecret` | `string` or secret ref | Webhook signing secret for HMAC verification |
 
 Authentication requires **one** of these modes:
 
 - Static token mode: set `linearApiKey`
 - OAuth automation mode: set `linearOauthClientId`, `linearOauthClientSecret`, `linearOauthRedirectUri`
+
+Secret-bearing fields accept either literal strings or OpenClaw secret references. For shared deployments, prefer secret references so teammates can copy the same plugin configuration without copying credentials.
 
 ### Recommended
 
@@ -218,6 +245,8 @@ Authentication requires **one** of these modes:
 
 ### Example Configuration
 
+Literal values work for quick local testing:
+
 ```json
 {
   "linearWebhookSecret": "whsec_...",
@@ -241,6 +270,72 @@ Authentication requires **one** of these modes:
   "externalUrlBase": "https://dash.example.com/sessions/{session}"
 }
 ```
+
+For a server deployment, keep secrets in a provider configured by OpenClaw and reference them from the plugin config:
+
+```json
+{
+  "linearWebhookSecret": {
+    "source": "file",
+    "provider": "linear",
+    "id": "/webhookSecret"
+  },
+  "linearOauthClientId": {
+    "source": "file",
+    "provider": "linear",
+    "id": "/oauthClientId"
+  },
+  "linearOauthClientSecret": {
+    "source": "file",
+    "provider": "linear",
+    "id": "/oauthClientSecret"
+  },
+  "linearOauthRedirectUri": "https://your-host/plugins/linear/oauth/callback",
+  "linearTokenStorePath": "/home/ubuntu/.openclaw/workspace/.pi/linear-oauth.json",
+  "devAgentId": "dev",
+  "defaultDir": "/home/ubuntu/code/main-repo",
+  "strictAddressing": true,
+  "mentionHandle": "your-linear-app-handle",
+  "delegateOnCreate": true,
+  "startOnCreate": true,
+  "enableAgentApi": true,
+  "apiBaseUrl": "https://your-host/plugins/linear/api"
+}
+```
+
+The referenced provider is defined in the root OpenClaw configuration, for example:
+
+```json
+{
+  "secrets": {
+    "providers": {
+      "linear": {
+        "source": "file",
+        "path": "~/.openclaw/secrets/linear.json",
+        "mode": "json"
+      }
+    }
+  }
+}
+```
+
+The secret file should be readable only by the service user and can contain:
+
+```json
+{
+  "webhookSecret": "Linear Webhook signing secret",
+  "oauthClientId": "Linear OAuth Client ID",
+  "oauthClientSecret": "Linear OAuth Client secret"
+}
+```
+
+The values come from the Linear application page:
+
+| Secret | Linear source |
+|--------|---------------|
+| `webhookSecret` | Webhook signing secret |
+| `oauthClientId` | OAuth Client ID |
+| `oauthClientSecret` | OAuth Client secret |
 
 ## Webhook Setup
 
@@ -621,10 +716,11 @@ The handler is now available as `{ "action": "my/action" }` through the API prox
 
 - Verify `linearWebhookSecret` matches the signing secret from Linear app settings
 - Check that the webhook is not stale (>60 seconds old) — clock sync issues can cause this
+- A manual unsigned request returning `401 Unauthorized` is normal. It proves the route is reachable and signature verification is active.
 
 ### Agent doesn't respond in Linear
 
-- Check that `linearApiKey` is a valid OAuth token with the required scopes
+- Check that `linearApiKey` is a valid OAuth token with the required scopes, or that OAuth automation has stored a token at `linearTokenStorePath`
 - Verify the agent ID in `devAgentId` matches a configured OpenClaw agent
 - Check OpenClaw gateway logs for errors
 
@@ -641,4 +737,4 @@ The handler is now available as `{ "action": "my/action" }` through the API prox
 
 ## License
 
-[MIT](LICENSE) &copy; [tokezooo](https://github.com/tokezooo)
+[MIT](LICENSE) &copy; [D1R1 AI](https://github.com/d1r1-ai)

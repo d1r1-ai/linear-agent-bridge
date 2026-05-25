@@ -26,7 +26,7 @@ export function createLinearOauthRoute(
   api: OpenClawPluginApi,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
-    const cfg = normalizeCfg(api.pluginConfig);
+    const cfg = normalizeCfg(api.pluginConfig, api.config);
 
     if (req.method === "GET") {
       const url = new URL(req.url || "/", "http://localhost");

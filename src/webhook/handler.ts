@@ -78,11 +78,17 @@ export function createLinearWebhook(
       return;
     }
     const raw = read.body;
-    const cfg = normalizeCfg(api.pluginConfig);
+    const cfg = normalizeCfg(api.pluginConfig, api.config);
     const secret = cfg.linearWebhookSecret;
     const sig = readHeader(req, "linear-signature");
     const delivery = readHeader(req, "linear-delivery");
-    if (secret && !verifySignature(secret, sig, raw)) {
+    if (!secret) {
+      api.logger.error?.("linear webhook rejected: missing webhook secret");
+      res.statusCode = 500;
+      res.end("Linear webhook secret not configured");
+      return;
+    }
+    if (!verifySignature(secret, sig, raw)) {
       res.statusCode = 401;
       res.end("Unauthorized");
       return;
