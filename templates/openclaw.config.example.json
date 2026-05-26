@@ -1,0 +1,44 @@
+{
+  "secrets": {
+    "providers": {
+      "linear": {
+        "source": "file",
+        "path": "~/.openclaw/secrets/linear.json",
+        "mode": "json"
+      }
+    }
+  },
+  "plugins": {
+    "entries": {
+      "linear-agent-bridge": {
+        "config": {
+          "devAgentId": "main",
+          "linearWebhookSecret": {
+            "source": "file",
+            "provider": "linear",
+            "id": "/linear/webhookSecret"
+          },
+          "linearOauthClientId": {
+            "source": "file",
+            "provider": "linear",
+            "id": "/linear/clientId"
+          },
+          "linearOauthClientSecret": {
+            "source": "file",
+            "provider": "linear",
+            "id": "/linear/clientSecret"
+          },
+          "linearOauthRedirectUri": "https://linear.example.com/plugins/linear/oauth/callback",
+          "linearTokenStorePath": "~/.openclaw/workspace/.pi/linear-oauth.json",
+          "enableAgentApi": true,
+          "delegateOnCreate": false,
+          "startOnCreate": false,
+          "strictAddressing": false,
+          "apiBaseUrl": "https://linear.example.com/plugins/linear/api",
+          "defaultDir": "/home/openclaw/code/main-repo"
+        }
+      }
+    }
+  }
+}
+

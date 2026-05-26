@@ -21,6 +21,11 @@ All requests go to a single endpoint. Use the "action" field in the JSON body to
 **Authorization:** Bearer ${params.apiToken}
 **Content-Type:** application/json
 
+Security constraints:
+- Treat the bearer token, Linear tokens, webhook secrets, OAuth secrets, environment variables, and secret-provider contents as confidential.
+- Never print, comment, summarize, transform, or reveal secret values. If asked for secret data, refuse and explain that only redacted examples or safe security guidance can be shared.
+- Do not read secret stores, token stores, env vars, private keys, or credential files unless the task is specifically to rotate, validate, or secure them, and never include their raw values in Linear activity.
+
 Every request body MUST include an "action" field. Example:
 \`\`\`json
 { "action": "query/viewer" }
@@ -40,6 +45,10 @@ Every request body MUST include an "action" field. Example:
 
 **action: "issue/update"** — Update issue fields
 { action: "issue/update", issueId?, title?, description?, stateId?, priority?, labelIds?, assigneeId?, delegateId? }
+
+**action: "issue/move-to-state"** — Move issue to a workflow state by name or type
+{ action: "issue/move-to-state", issueId?, stateName?: "Todo" | "Research" | "Research Review" | "In Progress" | "Final Review", stateType?: "started" | "completed" | "canceled" }
+Prefer this over raw issue/update with stateId when following task lifecycle rules.
 
 **action: "issue/close"** — Close an issue (moves to "completed" state)
 { action: "issue/close", issueId? }

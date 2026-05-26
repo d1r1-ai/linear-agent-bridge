@@ -6,6 +6,7 @@ import type {
 import { callLinear, resolveViewer } from "../linear-client.js";
 import {
   ISSUE_INFO_QUERY,
+  TEAM_DETAIL_QUERY,
   TEAM_STARTED_QUERY,
   TEAM_COMPLETED_QUERY,
 } from "../graphql/queries.js";
@@ -14,14 +15,15 @@ import { readArray, readNumber, readObject, readString, resolveFlag } from "../u
 
 const stateRef: Record<string, string> = {};
 const completedStateRef: Record<string, string> = {};
+const namedStateRef: Record<string, string> = {};
 
 export async function applyIssuePolicy(
   api: OpenClawPluginApi,
   cfg: PluginConfig,
   issueId: string,
 ): Promise<void> {
-  const start = resolveFlag(cfg.startOnCreate, true);
-  const delegate = resolveFlag(cfg.delegateOnCreate, true);
+  const start = resolveFlag(cfg.startOnCreate, false);
+  const delegate = resolveFlag(cfg.delegateOnCreate, false);
   if (!issueId) return;
   if (!start && !delegate) return;
   const info = await resolveIssueInfo(api, cfg, issueId);
@@ -134,6 +136,39 @@ export async function resolveCompletedState(
   return picked;
 }
 
+export async function resolveWorkflowState(input: {
+  api: OpenClawPluginApi;
+  cfg: PluginConfig;
+  teamId: string;
+  stateName?: string;
+  stateType?: string;
+}): Promise<{ id: string; name: string; type: string } | null> {
+  const teamId = input.teamId;
+  if (!teamId) return null;
+  const wantedName = normalizeState(input.stateName ?? "");
+  const wantedType = normalizeState(input.stateType ?? "");
+  if (!wantedName && !wantedType) return null;
+  const cacheKey = `${teamId}:${wantedName}:${wantedType}`;
+  const cached = namedStateRef[cacheKey];
+  if (cached) {
+    const [id, name, type] = cached.split("\t");
+    return { id, name, type };
+  }
+
+  const result = await callLinear(input.api, input.cfg, "team(workflow-states)", {
+    query: TEAM_DETAIL_QUERY,
+    variables: { id: teamId },
+  });
+  if (!result.ok) return null;
+  const team = readObject(result.data!.team);
+  const states = readObject(team?.states);
+  const nodes = readArray(states?.nodes);
+  const picked = pickWorkflowState(nodes, wantedName, wantedType);
+  if (!picked) return null;
+  namedStateRef[cacheKey] = `${picked.id}\t${picked.name}\t${picked.type}`;
+  return picked;
+}
+
 function pickLowestPosition(nodes: unknown[]): string {
   let best: { id: string; pos: number } | null = null;
   for (const node of nodes) {
@@ -145,6 +180,33 @@ function pickLowestPosition(nodes: unknown[]): string {
     if (!best || pos < best.pos) best = { id, pos };
   }
   return best?.id ?? "";
+}
+
+function pickWorkflowState(
+  nodes: unknown[],
+  wantedName: string,
+  wantedType: string,
+): { id: string; name: string; type: string; pos: number } | null {
+  let fallback: { id: string; name: string; type: string; pos: number } | null = null;
+  for (const node of nodes) {
+    const item = readObject(node);
+    if (!item) continue;
+    const id = readString(item.id) ?? "";
+    const name = readString(item.name) ?? "";
+    const type = readString(item.type) ?? "";
+    const pos = readNumber(item.position) ?? Number.POSITIVE_INFINITY;
+    if (!id) continue;
+    const candidate = { id, name, type, pos };
+    if (wantedName && normalizeState(name) === wantedName) return candidate;
+    if (wantedType && normalizeState(type) === wantedType) {
+      if (!fallback || pos < fallback.pos) fallback = candidate;
+    }
+  }
+  return fallback;
+}
+
+function normalizeState(input: string): string {
+  return input.trim().toLowerCase().replace(/[-_]+/g, " ").replace(/\s+/g, " ");
 }
 
 export async function updateIssue(

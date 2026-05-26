@@ -149,3 +149,23 @@ export function resolveFlag(
 ): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
+
+export function redactSensitiveText(input: string): string {
+  return input
+    .replace(
+      /\b(Authorization\s*:\s*Bearer\s+)[A-Za-z0-9._~+/=-]{16,}\b/gi,
+      "$1[REDACTED]",
+    )
+    .replace(
+      /\b(Bearer\s+)[A-Za-z0-9._~+/=-]{24,}\b/g,
+      "$1[REDACTED]",
+    )
+    .replace(
+      /\b((?:api|access|refresh|session|webhook|client)?_?token\s*[:=]\s*)[A-Za-z0-9._~+/=-]{16,}\b/gi,
+      "$1[REDACTED]",
+    )
+    .replace(
+      /\b((?:secret|password|client_secret|webhook_secret)\s*[:=]\s*)\S{8,}/gi,
+      "$1[REDACTED]",
+    );
+}

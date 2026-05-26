@@ -6,7 +6,11 @@ import {
   ISSUE_RELATION_CREATE_MUTATION,
 } from "../graphql/mutations.js";
 import { readObject, readString, sendJson } from "../util.js";
-import { resolveCompletedState, resolveIssueInfo } from "../webhook/issue-policy.js";
+import {
+  resolveCompletedState,
+  resolveIssueInfo,
+  resolveWorkflowState,
+} from "../webhook/issue-policy.js";
 
 // POST /issue/create
 registerApiHandler("/issue/create", async ({ api, cfg, context, body, res }) => {
@@ -31,7 +35,7 @@ registerApiHandler("/issue/create", async ({ api, cfg, context, body, res }) => 
     variables: { input },
   });
   if (!result.ok) {
-    sendJson(res, 502, { ok: false, error: "Linear API error" });
+    sendJson(res, 502, { ok: false, error: result.error ?? "Linear API error" });
     return;
   }
   const root = readObject(result.data!.issueCreate);
@@ -60,11 +64,57 @@ registerApiHandler("/issue/update", async ({ api, cfg, context, body, res }) => 
     variables: { id: issueId, input },
   });
   if (!result.ok) {
-    sendJson(res, 502, { ok: false, error: "Linear API error" });
+    sendJson(res, 502, { ok: false, error: result.error ?? "Linear API error" });
     return;
   }
   const root = readObject(result.data!.issueUpdate);
   sendJson(res, 200, { ok: root?.success === true, data: root });
+});
+
+// POST /issue/move-to-state
+registerApiHandler("/issue/move-to-state", async ({ api, cfg, context, body, res }) => {
+  const issueId = readString(body.issueId as string) || context.issueId;
+  if (!issueId) {
+    sendJson(res, 400, { ok: false, error: "issueId is required" });
+    return;
+  }
+  const stateName = readString(body.stateName as string);
+  const stateType = readString(body.stateType as string);
+  if (!stateName && !stateType) {
+    sendJson(res, 400, { ok: false, error: "stateName or stateType is required" });
+    return;
+  }
+
+  const info = await resolveIssueInfo(api, cfg, issueId);
+  const teamId = info?.teamId || context.teamId;
+  if (!teamId) {
+    sendJson(res, 400, { ok: false, error: "Cannot determine team" });
+    return;
+  }
+
+  const state = await resolveWorkflowState({ api, cfg, teamId, stateName, stateType });
+  if (!state) {
+    sendJson(res, 404, {
+      ok: false,
+      error: `Workflow state not found: ${stateName || stateType}`,
+    });
+    return;
+  }
+
+  const result = await callLinear(api, cfg, "issueUpdate(move-to-state)", {
+    query: ISSUE_UPDATE_MUTATION,
+    variables: { id: issueId, input: { stateId: state.id } },
+  });
+  if (!result.ok) {
+    sendJson(res, 502, { ok: false, error: result.error ?? "Linear API error" });
+    return;
+  }
+  const root = readObject(result.data!.issueUpdate);
+  sendJson(res, 200, {
+    ok: root?.success === true,
+    data: root,
+    state: { id: state.id, name: state.name, type: state.type },
+  });
 });
 
 // POST /issue/close
@@ -99,7 +149,7 @@ registerApiHandler("/issue/close", async ({ api, cfg, context, body, res }) => {
     variables: { id: issueId, input: { stateId } },
   });
   if (!result.ok) {
-    sendJson(res, 502, { ok: false, error: "Linear API error" });
+    sendJson(res, 502, { ok: false, error: result.error ?? "Linear API error" });
     return;
   }
   const root = readObject(result.data!.issueUpdate);
@@ -134,7 +184,7 @@ registerApiHandler("/issue/create-sub-issue", async ({ api, cfg, context, body, 
     variables: { input },
   });
   if (!result.ok) {
-    sendJson(res, 502, { ok: false, error: "Linear API error" });
+    sendJson(res, 502, { ok: false, error: result.error ?? "Linear API error" });
     return;
   }
   const root = readObject(result.data!.issueCreate);
@@ -164,7 +214,7 @@ registerApiHandler("/issue/link", async ({ api, cfg, context, body, res }) => {
     variables: { input: { issueId, relatedIssueId, type } },
   });
   if (!result.ok) {
-    sendJson(res, 502, { ok: false, error: "Linear API error" });
+    sendJson(res, 502, { ok: false, error: result.error ?? "Linear API error" });
     return;
   }
   const root = readObject(result.data!.issueRelationCreate);

@@ -49,6 +49,10 @@ import { buildEnrichedMessage } from "../agent/context-builder.js";
 import { cleanupSession } from "../agent/plan-manager.js";
 import { hasPostedResponse, clearResponseFlag } from "../agent/response-tracker.js";
 import { captureBaseUrl } from "../api/base-url.js";
+import {
+  classifyLifecycle,
+  resolveLifecycleIssueContext,
+} from "./lifecycle.js";
 
 const callRef: { value?: (opts: Record<string, unknown>) => Promise<unknown> } = {};
 
@@ -219,13 +223,30 @@ async function handleAgentEvent(
     }
   }
 
+  const lifecycleIssue = await resolveLifecycleIssueContext(api, cfg, issue, issueId);
+  const currentIssueId = lifecycleIssue.id || issueId;
+  const currentId = lifecycleIssue.identifier || id;
+  const currentTitle = lifecycleIssue.title || title;
+  const currentUrl = lifecycleIssue.url || url;
+  const currentDesc = lifecycleIssue.description || desc;
+  const lifecycle = await classifyLifecycle({
+    api,
+    cfg,
+    action,
+    prompt,
+    issue: lifecycleIssue,
+  });
+  api.logger.info?.(
+    `linear lifecycle: mode=${lifecycle.mode} reason=${lifecycle.reason}`,
+  );
+
   const context = resolveContext(data);
   const compactMessage = action === "prompted";
-  const team = resolveKey(issue?.team);
-  const proj = resolveKey(issue?.project);
+  const team = lifecycleIssue.teamKey || lifecycleIssue.teamId || resolveKey(issue?.team);
+  const proj = lifecycleIssue.projectId || lifecycleIssue.projectName || resolveKey(issue?.project);
   const repo = resolveRepo(cfg, team, proj);
   const agent = cfg.devAgentId ?? "dev";
-  const label = buildLabel(id, title);
+  const label = buildLabel(currentId, currentTitle);
   const session = resolveSessionId(data);
 
   // Dedup: skip if an agent is already running for this session.
@@ -242,7 +263,7 @@ async function handleAgentEvent(
   // Mark in-flight immediately (before any await) to prevent races.
   if (session) inflightSessions.set(session, Date.now());
 
-  const key = normalizeKey(session || id || randomUUID());
+  const key = normalizeKey(session || currentId || randomUUID());
   const sessionKey = `agent:${agent}:linear:${key}`;
   const idem = delivery ?? randomUUID();
   const signal = resolveSignal(data);
@@ -251,20 +272,20 @@ async function handleAgentEvent(
   // Handle stop signal
   if (signal === "stop") {
     if (session) inflightSessions.delete(session);
-    const text = buildStopText(id, title);
+    const text = buildStopText(currentId, currentTitle);
     postActivity(api, cfg, session, { type: "response", body: text }).catch(() => {});
     return;
   }
 
   // Post initial "thinking" activity
-  const thought = buildThought(action, id, title);
+  const thought = buildThought(action, currentId, currentTitle);
   postActivity(api, cfg, session, { type: "thought", body: thought }, { ephemeral: true }).catch(() => {});
 
   // Fast-path for explicit close commands
   if (isCloseIntentPrompt(prompt)) {
     if (session) inflightSessions.delete(session);
-    const closeText = issueId
-      ? await closeIssueFromPrompt(api, cfg, issueId, id, title)
+    const closeText = currentIssueId
+      ? await closeIssueFromPrompt(api, cfg, currentIssueId, currentId, currentTitle)
       : "Не удалось определить задачу для закрытия.";
     postActivity(api, cfg, session, { type: "response", body: closeText }).catch(() => {});
     return;
@@ -272,28 +293,28 @@ async function handleAgentEvent(
 
   // Apply issue policies on create
   if (action === "created") {
-    const external = resolveExternal(cfg, session, issueId);
+    const external = resolveExternal(cfg, session, currentIssueId);
     if (external) {
       updateSessionExternalUrl(api, cfg, session, external.url, external.label).catch(() => {});
     }
-    applyIssuePolicy(api, cfg, issueId).catch(() => {});
+    applyIssuePolicy(api, cfg, currentIssueId).catch(() => {});
   }
 
   // Resolve team ID for context
   const issueTeamObj = readObject(issue?.team);
-  const teamId = readString(issueTeamObj?.id) ?? "";
+  const teamId = lifecycleIssue.teamId || readString(issueTeamObj?.id) || "";
 
   // Generate per-session API token for agent to call back
   const enableApi = cfg.enableAgentApi !== false;
-  api.logger.info?.(`linear handler: enableApi=${enableApi} session=${session ? session.slice(0, 8) + "..." : "(none)"} issueId=${issueId.slice(0, 8) || "(none)"}`);
+  api.logger.info?.(`linear handler: enableApi=${enableApi} session=${session ? session.slice(0, 8) + "..." : "(none)"} issueId=${currentIssueId.slice(0, 8) || "(none)"}`);
   let apiToken = "";
   if (enableApi && session) {
     const sessionCtx = {
       sessionId: session,
-      issueId,
-      issueIdentifier: id,
-      issueTitle: title,
-      issueUrl: url,
+      issueId: currentIssueId,
+      issueIdentifier: currentId,
+      issueTitle: currentTitle,
+      issueUrl: currentUrl,
       teamId,
       apiToken: "", // will be set below
     };
@@ -309,35 +330,37 @@ async function handleAgentEvent(
     api.logger.info?.(`linear handler: ENRICHED message, apiBaseUrl=${apiBaseUrl}, tokenLen=${apiToken.length}`);
     message = buildEnrichedMessage({
       action,
-      id,
-      title,
-      url,
-      desc,
+      id: currentId,
+      title: currentTitle,
+      url: currentUrl,
+      desc: currentDesc,
       guidance,
       prompt,
       repo,
       session,
       context,
       compact: compactMessage,
+      lifecycle,
       apiBaseUrl,
       apiToken,
-      issueId,
+      issueId: currentIssueId,
       teamId,
     });
   } else {
     api.logger.info?.(`linear handler: PLAIN message (no enrichment), enableApi=${enableApi}, apiToken=${apiToken ? "set" : "empty"}`);
     message = buildMessage({
       action,
-      id,
-      title,
-      url,
-      desc,
+      id: currentId,
+      title: currentTitle,
+      url: currentUrl,
+      desc: currentDesc,
       guidance,
       prompt,
       repo,
       session,
       context,
       compact: compactMessage,
+      lifecycle,
     });
   }
 

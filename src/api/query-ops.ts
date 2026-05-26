@@ -20,7 +20,7 @@ registerApiHandler("/query/issue", async ({ api, cfg, context, body, res }) => {
     variables: { id: issueId },
   });
   if (!result.ok) {
-    sendJson(res, 502, { ok: false, error: "Linear API error" });
+    sendJson(res, 502, { ok: false, error: result.error ?? "Linear API error" });
     return;
   }
   sendJson(res, 200, { ok: true, data: result.data!.issue });
@@ -39,7 +39,7 @@ registerApiHandler("/query/team", async ({ api, cfg, context, body, res }) => {
     variables: { id: teamId },
   });
   if (!result.ok) {
-    sendJson(res, 502, { ok: false, error: "Linear API error" });
+    sendJson(res, 502, { ok: false, error: result.error ?? "Linear API error" });
     return;
   }
   sendJson(res, 200, { ok: true, data: result.data!.team });
@@ -68,7 +68,7 @@ registerApiHandler("/query/repo-suggestions", async ({ api, cfg, context, body, 
     },
   });
   if (!result.ok) {
-    sendJson(res, 502, { ok: false, error: "Linear API error" });
+    sendJson(res, 502, { ok: false, error: result.error ?? "Linear API error" });
     return;
   }
   sendJson(res, 200, {

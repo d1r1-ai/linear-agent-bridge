@@ -3,7 +3,7 @@ import type {
   PluginConfig,
   LinearCallResult,
 } from "./types.js";
-import { readObject, readString } from "./util.js";
+import { readObject, readString, redactSensitiveText } from "./util.js";
 import { getStoredAccessToken, refreshStoredToken } from "./oauth/refresh.js";
 
 const LINEAR_API_URL = "https://api.linear.app/graphql";
@@ -24,7 +24,7 @@ export async function callLinear(
   }
   if (!token) {
     warnMissingApiKey(api);
-    return { ok: false };
+    return { ok: false, error: "Linear API token missing" };
   }
   let res = await fetch(LINEAR_API_URL, {
     method: "POST",
@@ -57,32 +57,31 @@ export async function callLinear(
 
   if (!res) {
     api.logger.warn?.(`linear ${label} failed: fetch error`);
-    return { ok: false };
+    return { ok: false, error: "fetch error" };
   }
   if (!res.ok) {
-    const detail = await res.text();
+    const detail = redactSensitiveText(await res.text());
     api.logger.warn?.(`linear ${label} failed (${res.status}): ${detail}`);
-    return { ok: false };
+    return { ok: false, error: `Linear API HTTP ${res.status}: ${detail}` };
   }
   const json = await res.json().catch(() => null);
   const root = readObject(json);
   if (!root) {
     api.logger.warn?.(`linear ${label} invalid response`);
-    return { ok: false };
+    return { ok: false, error: "invalid Linear API response" };
   }
   const errors = root.errors;
   if (Array.isArray(errors) && errors.length > 0) {
-    const detail = (errors as unknown[])
-      .map((item) => readString(readObject(item)?.message) ?? "error")
-      .filter(Boolean)
-      .join("; ");
-    api.logger.warn?.(`linear ${label} failed: ${detail}`);
-    return { ok: false };
+    const detail = formatGraphqlErrors(errors);
+    api.logger.warn?.(
+      `linear ${label} failed: ${detail}; variables=${describeVariables(body.variables)}`,
+    );
+    return { ok: false, error: detail };
   }
   const data = readObject(root.data);
   if (!data) {
     api.logger.warn?.(`linear ${label} missing data`);
-    return { ok: false };
+    return { ok: false, error: "Linear API response missing data" };
   }
   return { ok: true, data };
 }
@@ -109,5 +108,39 @@ function warnMissingApiKey(api: OpenClawPluginApi): void {
   warnRef.value = true;
   api.logger.warn?.(
     "linear API token missing; set linearApiKey or configure OAuth exchange + token store",
+  );
+}
+
+function formatGraphqlErrors(errors: unknown[]): string {
+  return redactSensitiveText(
+    errors
+      .map((item) => {
+        const obj = readObject(item);
+        const message = readString(obj?.message) ?? "GraphQL error";
+        const path = Array.isArray(obj?.path) ? ` path=${obj.path.join(".")}` : "";
+        const extensions = readObject(obj?.extensions);
+        const code = readString(extensions?.code);
+        return code ? `${message} (${code})${path}` : `${message}${path}`;
+      })
+      .filter(Boolean)
+      .join("; "),
+  );
+}
+
+function describeVariables(input: Record<string, unknown>): string {
+  const shape = Object.fromEntries(
+    Object.entries(input).map(([key, value]) => [key, describeValue(value)]),
+  );
+  return redactSensitiveText(JSON.stringify(shape));
+}
+
+function describeValue(input: unknown): unknown {
+  if (Array.isArray(input)) return `[array:${input.length}]`;
+  if (!input || typeof input !== "object") return typeof input;
+  return Object.fromEntries(
+    Object.entries(input as Record<string, unknown>).map(([key, value]) => [
+      key,
+      describeValue(value),
+    ]),
   );
 }

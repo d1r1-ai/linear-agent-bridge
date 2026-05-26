@@ -23,6 +23,7 @@ export const ISSUE_DETAIL_QUERY = `
       priorityLabel
       state { id name type }
       team { id key name }
+      project { id name }
       assignee { id name displayName }
       delegate { id name displayName }
       labels { nodes { id name color } }

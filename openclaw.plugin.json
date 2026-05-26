@@ -75,11 +75,11 @@
       },
       "delegateOnCreate": {
         "type": "boolean",
-        "description": "Auto-delegate issues to the app user on session create (default: true)"
+        "description": "Auto-delegate issues to the app user on session create (default: false)"
       },
       "startOnCreate": {
         "type": "boolean",
-        "description": "Move issues to 'started' state on session create (default: true)"
+        "description": "Move issues to 'started' state on session create (default: false)"
       },
       "externalUrlBase": {
         "type": "string",

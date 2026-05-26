@@ -1,4 +1,4 @@
-import { readArray, readObject, readString } from "../util.js";
+import { readArray, readObject, readString, redactSensitiveText } from "../util.js";
 
 export function buildAgentResponse(input: unknown): string {
   const payload = readObject(input);
@@ -24,7 +24,7 @@ function collectPayloadText(payloads: unknown[]): string {
     const media = collectMediaUrls(item, seenMedia);
     for (const url of media) lines.push(`Media: ${url}`);
   }
-  return lines.join("\n\n");
+  return redactSensitiveText(lines.join("\n\n"));
 }
 
 function collectMediaUrls(

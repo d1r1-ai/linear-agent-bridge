@@ -1,4 +1,5 @@
 import { readObject, readString } from "../util.js";
+import { buildLifecycleBlock, type LifecycleDecision } from "./lifecycle.js";
 
 export interface MessageParams {
   action: string;
@@ -12,6 +13,7 @@ export interface MessageParams {
   session: string;
   context: string;
   compact?: boolean;
+  lifecycle?: LifecycleDecision;
 }
 
 export function buildLabel(id: string, title: string): string {
@@ -49,12 +51,14 @@ export function buildMessage(params: MessageParams): string {
     : params.context
       ? `Prompt context:\n${params.context}`
       : "";
+  const lifecycleLine = compact ? "" : buildLifecycleBlock(params.lifecycle);
   const lines = [
     actionLine,
     issueLine,
     params.url ? `URL: ${params.url}` : "",
     params.repo ? `Repo: ${params.repo}` : "",
     params.session ? `Agent session: ${params.session}` : "",
+    lifecycleLine,
     contextLine,
     params.prompt ? `User prompt:\n${params.prompt}` : "",
     guidanceLine,

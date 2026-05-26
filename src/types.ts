@@ -87,6 +87,7 @@ export interface SessionContext {
 export interface LinearCallResult {
   ok: boolean;
   data?: Record<string, unknown>;
+  error?: string;
 }
 
 export type ReadBodyResult =
