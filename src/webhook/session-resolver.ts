@@ -9,6 +9,20 @@ import { readArray, readObject, readString, sleep } from "../util.js";
 const sessionByIssueRef: Record<string, string> = {};
 const sessionByCommentRef: Record<string, string> = {};
 
+export type SessionResolutionSource =
+  | "direct"
+  | "issue-cache"
+  | "comment-cache"
+  | "parent-cache"
+  | "parent-query"
+  | "comment-query"
+  | "issue-query";
+
+export interface SessionResolution {
+  sessionId: string;
+  source: SessionResolutionSource;
+}
+
 export function resolveSessionId(
   data: Record<string, unknown>,
 ): string {
@@ -58,13 +72,22 @@ export async function resolveSessionIdWithFallback(
   cfg: PluginConfig,
   data: Record<string, unknown>,
 ): Promise<string> {
+  const resolution = await resolveSessionWithFallback(api, cfg, data);
+  return resolution?.sessionId ?? "";
+}
+
+export async function resolveSessionWithFallback(
+  api: OpenClawPluginApi,
+  cfg: PluginConfig,
+  data: Record<string, unknown>,
+): Promise<SessionResolution | undefined> {
   const direct = resolveSessionId(data);
   if (direct) {
     rememberSessionHint(data, direct);
-    return direct;
+    return { sessionId: direct, source: "direct" };
   }
   const kind = readString(data.type as string) ?? "";
-  if (kind !== "Comment") return "";
+  if (kind !== "Comment") return undefined;
 
   const comment = readObject(data.comment);
   const issueId =
@@ -72,20 +95,17 @@ export async function resolveSessionIdWithFallback(
     readString(data.issueId as string) ??
     readString(comment?.issueId as string) ??
     "";
-  if (issueId && sessionByIssueRef[issueId]) {
-    return sessionByIssueRef[issueId];
-  }
   const commentId =
     readString(comment?.id) ?? readString(data.id as string) ?? "";
   if (commentId && sessionByCommentRef[commentId]) {
-    return sessionByCommentRef[commentId];
+    return { sessionId: sessionByCommentRef[commentId], source: "comment-cache" };
   }
   const parentId =
     readString(comment?.parentId) ??
     readString(data.parentId as string) ??
     "";
   if (parentId && sessionByCommentRef[parentId]) {
-    return sessionByCommentRef[parentId];
+    return { sessionId: sessionByCommentRef[parentId], source: "parent-cache" };
   }
   const viaParent = await resolveSessionFromCommentWithRetry(
     api,
@@ -94,7 +114,7 @@ export async function resolveSessionIdWithFallback(
   );
   if (viaParent) {
     rememberSessionHint({ ...data, id: parentId }, viaParent);
-    return viaParent;
+    return { sessionId: viaParent, source: "parent-query" };
   }
   const viaComment = await resolveSessionFromCommentWithRetry(
     api,
@@ -103,12 +123,25 @@ export async function resolveSessionIdWithFallback(
   );
   if (viaComment) {
     rememberSessionHint({ ...data, parentId }, viaComment);
-    return viaComment;
+    return { sessionId: viaComment, source: "comment-query" };
   }
-  if (!issueId) return "";
+  if (issueId && sessionByIssueRef[issueId]) {
+    return { sessionId: sessionByIssueRef[issueId], source: "issue-cache" };
+  }
+  if (!issueId) return undefined;
   const viaIssue = await resolveSessionFromIssue(api, cfg, issueId);
   if (viaIssue) rememberSessionHint(data, viaIssue);
-  return viaIssue;
+  return viaIssue ? { sessionId: viaIssue, source: "issue-query" } : undefined;
+}
+
+export function isSessionScopedCommentSource(
+  source: SessionResolutionSource | undefined,
+): boolean {
+  return source === "direct" ||
+    source === "comment-cache" ||
+    source === "parent-cache" ||
+    source === "parent-query" ||
+    source === "comment-query";
 }
 
 export function resolveIssue(

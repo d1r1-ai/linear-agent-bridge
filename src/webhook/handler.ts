@@ -23,9 +23,11 @@ import {
 import { verifySignature } from "./validation.js";
 import {
   resolveSessionId,
-  resolveSessionIdWithFallback,
+  resolveSessionWithFallback,
   resolveIssue,
   rememberSessionHint,
+  isSessionScopedCommentSource,
+  type SessionResolutionSource,
 } from "./session-resolver.js";
 import {
   buildMessage,
@@ -52,6 +54,7 @@ import { captureBaseUrl } from "../api/base-url.js";
 import {
   classifyLifecycle,
   resolveLifecycleIssueContext,
+  type LifecycleIssueContext,
 } from "./lifecycle.js";
 
 const callRef: { value?: (opts: Record<string, unknown>) => Promise<unknown> } = {};
@@ -152,7 +155,8 @@ async function handleWebhook(
   if (kind === "Comment" && (await isSelfAuthoredComment(api, cfg, data))) {
     return;
   }
-  const sessionId = await resolveSessionIdWithFallback(api, cfg, data);
+  const sessionResolution = await resolveSessionWithFallback(api, cfg, data);
+  const sessionId = sessionResolution?.sessionId ?? "";
   if (!sessionId) {
     if (kind) {
       if (kind === "Comment") {
@@ -172,7 +176,7 @@ async function handleWebhook(
     ? data
     : { ...data, agentSessionId: sessionId };
   rememberSessionHint(eventData, sessionId);
-  await handleAgentEvent(api, cfg, eventData, delivery);
+  await handleAgentEvent(api, cfg, eventData, delivery, sessionResolution?.source);
 }
 
 async function handleAgentEvent(
@@ -180,6 +184,7 @@ async function handleAgentEvent(
   cfg: PluginConfig,
   data: Record<string, unknown>,
   delivery: string | undefined,
+  sessionSource?: SessionResolutionSource,
 ): Promise<void> {
   const action = resolveAction(data);
   if (!action) {
@@ -205,8 +210,16 @@ async function handleAgentEvent(
     }
   }
 
+  const lifecycleIssue = await resolveLifecycleIssueContext(api, cfg, issue, issueId);
+  const currentIssueId = lifecycleIssue.id || issueId;
+  const currentId = lifecycleIssue.identifier || id;
+  const currentTitle = lifecycleIssue.title || title;
+  const currentUrl = lifecycleIssue.url || url;
+  const currentDesc = lifecycleIssue.description || desc;
+
   if (cfg.strictAddressing === true) {
     const viewerId = await resolveViewer(api, cfg);
+    const issueAddressReason = resolveIssueAddressReason(lifecycleIssue, viewerId);
     const addressed = await isExplicitlyAddressed({
       api,
       cfg,
@@ -214,8 +227,9 @@ async function handleAgentEvent(
       action,
       data,
       prompt,
-      viewerId,
       mentionHandle: cfg.mentionHandle,
+      sessionSource,
+      issueAddressReason,
     });
     if (!addressed.ok) {
       api.logger.info?.(`linear event ignored (strictAddressing: ${addressed.reason})`);
@@ -223,12 +237,6 @@ async function handleAgentEvent(
     }
   }
 
-  const lifecycleIssue = await resolveLifecycleIssueContext(api, cfg, issue, issueId);
-  const currentIssueId = lifecycleIssue.id || issueId;
-  const currentId = lifecycleIssue.identifier || id;
-  const currentTitle = lifecycleIssue.title || title;
-  const currentUrl = lifecycleIssue.url || url;
-  const currentDesc = lifecycleIssue.description || desc;
   const lifecycle = await classifyLifecycle({
     api,
     cfg,
@@ -507,18 +515,16 @@ async function isExplicitlyAddressed(input: {
   action: string;
   data: Record<string, unknown>;
   prompt: string;
-  viewerId: string;
   mentionHandle?: string;
+  sessionSource?: SessionResolutionSource;
+  issueAddressReason?: string;
 }): Promise<{ ok: boolean; reason: string }> {
-  const { api, cfg, kind, action, data, prompt, viewerId, mentionHandle } = input;
+  const { api, cfg, kind, action, data, prompt, mentionHandle, sessionSource, issueAddressReason } = input;
 
   // Session creation events are allowed only when delegated to this app user.
   if (action === "created") {
-    const issue = resolveIssue(data);
-    const delegate = readObject(issue?.delegate);
-    const delegateId = readString(delegate?.id) ?? "";
-    if (viewerId && delegateId && delegateId === viewerId) {
-      return { ok: true, reason: "delegated-to-app" };
+    if (issueAddressReason) {
+      return { ok: true, reason: issueAddressReason };
     }
     // In strict mode, also allow explicit mention on create events.
     const handle = (mentionHandle ?? "").trim().toLowerCase().replace(/^@/, "");
@@ -545,6 +551,14 @@ async function isExplicitlyAddressed(input: {
     return { ok: true, reason: "explicit-mention" };
   }
 
+  const sessionScopedComment =
+    action === "prompted" &&
+    kind === "Comment" &&
+    isSessionScopedCommentSource(sessionSource);
+  if (sessionScopedComment && issueAddressReason) {
+    return { ok: true, reason: `session-scoped-comment-${issueAddressReason}-${sessionSource}` };
+  }
+
   // For thread replies, lock on root thread owner mention when present.
   const parentId = readString(comment?.parentId) ?? readString(data.parentId as string) ?? "";
   const commentId = readString(comment?.id) ?? readString(data.commentId as string) ?? "";
@@ -559,7 +573,21 @@ async function isExplicitlyAddressed(input: {
     return { ok: false, reason: "thread-owner-unknown" };
   }
 
+  if (sessionScopedComment) {
+    return { ok: false, reason: `session-not-owned-by-us-${sessionSource}` };
+  }
+
   return { ok: false, reason: "not-addressed" };
+}
+
+function resolveIssueAddressReason(
+  issue: LifecycleIssueContext,
+  viewerId: string,
+): string {
+  if (!viewerId) return "";
+  if (issue.delegateId && issue.delegateId === viewerId) return "delegated-to-app";
+  if (issue.assigneeId && issue.assigneeId === viewerId) return "assigned-to-app";
+  return "";
 }
 
 function extractMentionHandles(text: string): Set<string> {

@@ -5,6 +5,7 @@ import { readArray, readObject, readString } from "../util.js";
 
 export type LifecycleMode =
   | "intake"
+  | "todo_wait"
   | "research"
   | "implementation"
   | "review_wait"
@@ -30,6 +31,7 @@ export interface LifecycleIssueContext {
   delegateId: string;
   delegateName: string;
   labels: string[];
+  estimate?: number;
 }
 
 export interface LifecycleDecision {
@@ -90,16 +92,16 @@ export async function classifyLifecycle(input: {
       ...base,
       mode: "intake",
       reason: "issue is in Backlog and assigned/delegated to this agent",
-      allowedTransitions: ["Todo", "Research"],
+      allowedTransitions: ["Todo"],
     };
   }
 
   if ((stateName === "todo" || stateName === "to do") && addressedToAgent && !explicitOverride) {
     return {
       ...base,
-      mode: "research",
-      reason: "issue is in Todo and assigned/delegated to this agent",
-      allowedTransitions: ["Research", "Research Review"],
+      mode: "todo_wait",
+      reason: "issue is in Todo; Todo is manager-owned",
+      allowedTransitions: [],
     };
   }
 
@@ -159,6 +161,8 @@ export function buildLifecycleBlock(decision: LifecycleDecision | undefined): st
     decision.currentState ? `Current state: ${decision.currentState}` : "",
     decision.issue?.assigneeName ? `Assignee: ${decision.issue.assigneeName}` : "",
     decision.issue?.delegateName ? `Delegate: ${decision.issue.delegateName}` : "",
+    decision.issue?.labels.length ? `Labels: ${decision.issue.labels.join(", ")}` : "",
+    decision.issue?.estimate !== undefined ? `Estimate: ${decision.issue.estimate}` : "",
     decision.allowedTransitions.length
       ? `Allowed next states: ${decision.allowedTransitions.join(", ")}`
       : "",
@@ -211,6 +215,7 @@ function readIssueContext(input: unknown): LifecycleIssueContext {
     delegateId: readString(delegate?.id) ?? "",
     delegateName: readString(delegate?.displayName) ?? readString(delegate?.name) ?? "",
     labels,
+    estimate: typeof issue?.estimate === "number" ? issue.estimate : undefined,
   };
 }
 
@@ -236,12 +241,25 @@ function requiredBehavior(mode: LifecycleMode): string[] {
       "- Do not perform full implementation, audit, or code changes yet.",
       "- Inspect only enough context to clarify scope and repository ownership.",
       "- Improve the issue title, description, acceptance criteria, and repository context when needed.",
-      "- Move the issue to Todo or Research using issue/move-to-state.",
+      "- Add missing labels and an estimate. Preserve existing labels and estimate unless there is a clear reason to change them.",
+      "- Use query/team to resolve label IDs, then issue/update with labelIds and estimate.",
+      "- Move the issue to Todo using issue/move-to-state.",
+      "- Unassign yourself after moving it to Todo using issue/update with assigneeId: null.",
       "- Post a short intake summary and stop.",
+    ];
+  }
+  if (mode === "todo_wait") {
+    return [
+      "- Treat Todo as manager-owned.",
+      "- Do not automatically take, self-assign, or move the issue to Research.",
+      "- If explicitly asked to prepare the issue, add missing context, acceptance criteria, open questions, labels, repository/component, and estimate where possible, then leave it in Todo.",
+      "- Do not start research or implementation unless the manager explicitly moves the issue to Research or gives an explicit override.",
     ];
   }
   if (mode === "research") {
     return [
+      "- Only take this work because the issue is already in Research.",
+      "- Assign the issue to yourself if needed and keep yourself assigned.",
       "- Investigate constraints and existing code without starting implementation.",
       "- Prepare a concrete plan with risks, blockers, and verification strategy.",
       "- Move the issue to Research Review when research is complete.",

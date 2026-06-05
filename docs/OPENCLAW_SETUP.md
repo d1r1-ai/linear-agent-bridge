@@ -60,11 +60,13 @@ Recommended lifecycle-safe flags:
   "enableAgentApi": true,
   "delegateOnCreate": false,
   "startOnCreate": false,
-  "strictAddressing": false
+  "strictAddressing": true
 }
 ```
 
-`delegateOnCreate` and `startOnCreate` default to `false` because a new Linear session should enter the workflow at intake/research. Implementation starts only from `In Progress` or with an explicit human override.
+`delegateOnCreate` and `startOnCreate` default to `false` because a new Linear session should follow the issue workflow state instead of starting implementation. Backlog enters intake, Todo waits for manager action, Research performs planning, and implementation starts only from `In Progress` or with an explicit human override.
+
+Keep `strictAddressing` enabled when Linear issues may mention multiple agents. With strict addressing, assigned/delegated issues can start the agent lifecycle, and replies inside an existing Linear agent session can omit the handle only when the issue belongs to that agent.
 
 ## Add Agent Instructions
 
@@ -80,4 +82,3 @@ systemctl --user status openclaw-gateway.service --no-pager
 ```
 
 Use your process manager's equivalent if OpenClaw Gateway is not managed by user-level systemd.
-

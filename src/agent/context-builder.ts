@@ -41,10 +41,10 @@ Every request body MUST include an "action" field. Example:
 ### Issue Management
 
 **action: "issue/create"** — Create a new issue
-{ action: "issue/create", teamId?, title, description?, priority? (0-4), labelIds?: string[], assigneeId?, parentId?, stateId? }
+{ action: "issue/create", teamId?, title, description?, priority? (0-4), estimate?, labelIds?: string[], assigneeId?, parentId?, stateId? }
 
 **action: "issue/update"** — Update issue fields
-{ action: "issue/update", issueId?, title?, description?, stateId?, priority?, labelIds?, assigneeId?, delegateId? }
+{ action: "issue/update", issueId?, title?, description?, stateId?, priority?, estimate?, labelIds?, assigneeId? /* use null to unassign */, delegateId? }
 
 **action: "issue/move-to-state"** — Move issue to a workflow state by name or type
 { action: "issue/move-to-state", issueId?, stateName?: "Todo" | "Research" | "Research Review" | "In Progress" | "Final Review", stateType?: "started" | "completed" | "canceled" }
@@ -54,7 +54,7 @@ Prefer this over raw issue/update with stateId when following task lifecycle rul
 { action: "issue/close", issueId? }
 
 **action: "issue/create-sub-issue"** — Create a child issue under the current issue
-{ action: "issue/create-sub-issue", title, description?, priority?, labelIds?, assigneeId? }
+{ action: "issue/create-sub-issue", title, description?, priority?, estimate?, labelIds?, assigneeId? }
 
 **action: "issue/link"** — Link two issues together
 { action: "issue/link", issueId?, relatedIssueId, type: "blocks" | "blocked_by" | "related" | "duplicate" }

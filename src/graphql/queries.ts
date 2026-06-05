@@ -21,6 +21,7 @@ export const ISSUE_DETAIL_QUERY = `
       url
       priority
       priorityLabel
+      estimate
       state { id name type }
       team { id key name }
       project { id name }

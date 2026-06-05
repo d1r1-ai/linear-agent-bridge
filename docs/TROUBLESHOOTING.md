@@ -38,7 +38,7 @@ Check:
 
 ### Issue Stays In Backlog
 
-Check that the Linear workflow has a target state named `Todo` or `Research`, and that the app token has permission to update issues.
+Check that the Linear workflow has a target state named `Todo`, and that the app token has permission to update issues and clear the assignee.
 
 ### Manual Curl Gets 401
 
@@ -47,4 +47,3 @@ That is expected for unsigned webhook requests. Linear webhooks are accepted onl
 ### Agent Posts Secrets
 
 The bridge redacts common bearer/token/secret patterns before posting back to Linear, but prompts and repository instructions should still tell agents not to print secrets.
-

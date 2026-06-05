@@ -66,6 +66,5 @@ Create a test issue in `Backlog`, assign or delegate it to the app user, and che
 
 - Linear delivery logs show a successful webhook delivery.
 - OpenClaw Gateway logs show `linear lifecycle: mode=intake`.
-- The issue is clarified and moved to `Todo` or `Research`.
+- The issue is clarified, moved to `Todo`, and unassigned from the agent.
 - The agent does not begin implementation from `Backlog`.
-

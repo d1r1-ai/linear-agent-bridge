@@ -5,7 +5,7 @@ import {
   ISSUE_UPDATE_MUTATION,
   ISSUE_RELATION_CREATE_MUTATION,
 } from "../graphql/mutations.js";
-import { readObject, readString, sendJson } from "../util.js";
+import { readNumber, readObject, readString, sendJson } from "../util.js";
 import {
   resolveCompletedState,
   resolveIssueInfo,
@@ -20,6 +20,8 @@ registerApiHandler("/issue/create", async ({ api, cfg, context, body, res }) => 
   };
   if (body.description) input.description = body.description;
   if (typeof body.priority === "number") input.priority = body.priority;
+  const estimate = readNumber(body.estimate);
+  if (estimate !== undefined) input.estimate = estimate;
   if (Array.isArray(body.labelIds)) input.labelIds = body.labelIds;
   if (body.assigneeId) input.assigneeId = body.assigneeId;
   if (body.parentId) input.parentId = body.parentId;
@@ -55,6 +57,8 @@ registerApiHandler("/issue/update", async ({ api, cfg, context, body, res }) => 
   if (body.description !== undefined) input.description = body.description;
   if (body.stateId !== undefined) input.stateId = body.stateId;
   if (typeof body.priority === "number") input.priority = body.priority;
+  const estimate = readNumber(body.estimate);
+  if (estimate !== undefined) input.estimate = estimate;
   if (Array.isArray(body.labelIds)) input.labelIds = body.labelIds;
   if (body.assigneeId !== undefined) input.assigneeId = body.assigneeId;
   if (body.delegateId !== undefined) input.delegateId = body.delegateId;
@@ -171,6 +175,8 @@ registerApiHandler("/issue/create-sub-issue", async ({ api, cfg, context, body, 
   };
   if (body.description) input.description = body.description;
   if (typeof body.priority === "number") input.priority = body.priority;
+  const estimate = readNumber(body.estimate);
+  if (estimate !== undefined) input.estimate = estimate;
   if (Array.isArray(body.labelIds)) input.labelIds = body.labelIds;
   if (body.assigneeId) input.assigneeId = body.assigneeId;
 
