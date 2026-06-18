@@ -40,6 +40,7 @@ import {
   resolveContext,
   resolveKey,
   resolveRepo,
+  resolveRepoFromIssueText,
   resolveExternal,
 } from "./message-builder.js";
 import { buildAgentResponse } from "./response-parser.js";
@@ -252,7 +253,16 @@ async function handleAgentEvent(
   const compactMessage = action === "prompted";
   const team = lifecycleIssue.teamKey || lifecycleIssue.teamId || resolveKey(issue?.team);
   const proj = lifecycleIssue.projectId || lifecycleIssue.projectName || resolveKey(issue?.project);
-  const repo = resolveRepo(cfg, team, proj);
+  const repoFromIssue = resolveRepoFromIssueText([
+    currentDesc,
+    context,
+    prompt,
+    ...lifecycleIssue.labels,
+  ]);
+  const repo = repoFromIssue || resolveRepo(cfg, team, proj);
+  if (repoFromIssue) {
+    api.logger.info?.(`linear repo resolved from issue metadata: ${repoFromIssue}`);
+  }
   const agent = cfg.devAgentId ?? "dev";
   const label = buildLabel(currentId, currentTitle);
   const session = resolveSessionId(data);
@@ -702,8 +712,11 @@ async function loadCallGateway(
             pathToFileURL(path.join(distDir, file)).href
           );
           const fn =
-            (mod?.n as ((...args: unknown[]) => unknown) | undefined) ??
-            (mod?.callGateway as ((...args: unknown[]) => unknown) | undefined);
+            (mod?.callGateway as ((...args: unknown[]) => unknown) | undefined) ??
+            Object.values(mod ?? {}).find(
+              (value): value is (...args: unknown[]) => unknown =>
+                typeof value === "function" && value.name === "callGateway",
+            );
           if (typeof fn === "function") {
             const auth = api.config?.gateway?.auth ?? {};
             const token =

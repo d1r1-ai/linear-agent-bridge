@@ -240,6 +240,7 @@ function requiredBehavior(mode: LifecycleMode): string[] {
     return [
       "- Do not perform full implementation, audit, or code changes yet.",
       "- Inspect only enough context to clarify scope and repository ownership.",
+      "- Determine the repository only from explicit issue metadata, repo labels, accepted research plans, repository URLs, or manager input. If repository ownership is unclear, ask instead of guessing from local keyword matches.",
       "- Improve the issue title, description, acceptance criteria, and repository context when needed.",
       "- Add missing labels and an estimate. Preserve existing labels and estimate unless there is a clear reason to change them.",
       "- Use query/team to resolve label IDs, then issue/update with labelIds and estimate.",
@@ -252,6 +253,7 @@ function requiredBehavior(mode: LifecycleMode): string[] {
     return [
       "- Treat Todo as manager-owned.",
       "- Do not automatically take, self-assign, or move the issue to Research.",
+      "- Determine the repository only from explicit issue metadata, repo labels, accepted research plans, repository URLs, or manager input. If repository ownership is unclear, ask instead of guessing from local keyword matches.",
       "- If explicitly asked to prepare the issue, add missing context, acceptance criteria, open questions, labels, repository/component, and estimate where possible, then leave it in Todo.",
       "- Do not start research or implementation unless the manager explicitly moves the issue to Research or gives an explicit override.",
     ];
@@ -261,6 +263,7 @@ function requiredBehavior(mode: LifecycleMode): string[] {
       "- Only take this work because the issue is already in Research.",
       "- Assign the issue to yourself if needed and keep yourself assigned.",
       "- Investigate constraints and existing code without starting implementation.",
+      "- Determine the repository only from explicit issue metadata, repo labels, accepted research plans, repository URLs, or manager input. If repository ownership is unclear, ask instead of guessing from local keyword matches.",
       "- Prepare a concrete plan with risks, blockers, and verification strategy.",
       "- Move the issue to Research Review when research is complete.",
       "- Stop and wait for manager input before implementation.",
@@ -269,6 +272,7 @@ function requiredBehavior(mode: LifecycleMode): string[] {
   if (mode === "implementation") {
     return [
       "- Implement only the scoped task.",
+      "- Work only in repositories identified by explicit issue metadata, repo labels, accepted research plans, repository URLs, or manager input. If repository ownership is unclear, stop and ask.",
       "- Protect unrelated local changes and check worktree status before edits.",
       "- Run fresh verification before reporting completion.",
       "- Move or ask to move the issue to Final Review when implementation is complete; do not mark Done directly.",

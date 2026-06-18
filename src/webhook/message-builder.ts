@@ -57,6 +57,9 @@ export function buildMessage(params: MessageParams): string {
     issueLine,
     params.url ? `URL: ${params.url}` : "",
     params.repo ? `Repo: ${params.repo}` : "",
+    params.repo
+      ? ""
+      : "Repository: unresolved. Read Linear issue metadata, accepted research plan, repo labels, or explicit repository URLs before choosing a repo. If still unclear, ask for the repository; do not guess from local keyword matches or default directories.",
     params.session ? `Agent session: ${params.session}` : "",
     lifecycleLine,
     contextLine,
@@ -87,13 +90,51 @@ export function buildStopText(id: string, title: string): string {
 }
 
 export function resolveRepo(
-  cfg: { repoByProject?: Record<string, string>; repoByTeam?: Record<string, string>; defaultDir?: string },
+  cfg: { repoByProject?: Record<string, string>; repoByTeam?: Record<string, string> },
   team: string,
   proj: string,
 ): string {
   if (proj && cfg.repoByProject?.[proj]) return cfg.repoByProject[proj];
   if (team && cfg.repoByTeam?.[team]) return cfg.repoByTeam[team];
-  return cfg.defaultDir ?? "";
+  return "";
+}
+
+export function resolveRepoFromIssueText(values: string[]): string {
+  for (const value of values) {
+    const repo = extractGithubRepo(value);
+    if (repo) return repo;
+  }
+  for (const value of values) {
+    const repo = extractNamedRepo(value);
+    if (repo) return repo;
+  }
+  return "";
+}
+
+function extractGithubRepo(value: string): string {
+  const text = value.trim();
+  if (!text) return "";
+  const httpsMatch = text.match(
+    /(?:https?:\/\/)?(?:www\.)?github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)(?:\.git)?(?:[/?#\s)]|$)/i,
+  );
+  const sshMatch = text.match(
+    /git@github\.com:([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)(?:\.git)?(?:\s|$)/i,
+  );
+  const repo = httpsMatch?.[1] ?? sshMatch?.[1] ?? "";
+  return repo ? `https://github.com/${repo}` : "";
+}
+
+function extractNamedRepo(value: string): string {
+  const text = value.trim();
+  if (!text) return "";
+  const match = text.match(
+    /(?:^|\n|\s)(?:repo|repository)\s*:\s*([^\s,;]+)/i,
+  );
+  return cleanRepoToken(match?.[1] ?? "");
+}
+
+function cleanRepoToken(value: string): string {
+  return value.trim().replace(/[).,\];]+$/g, "");
 }
 
 export function resolveAction(data: Record<string, unknown>): string {

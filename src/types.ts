@@ -34,7 +34,6 @@ export interface PluginConfig {
   notifyAccountId?: string;
   repoByTeam?: Record<string, string>;
   repoByProject?: Record<string, string>;
-  defaultDir?: string;
   delegateOnCreate?: boolean;
   startOnCreate?: boolean;
   externalUrlBase?: string;

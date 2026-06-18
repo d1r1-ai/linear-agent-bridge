@@ -91,7 +91,7 @@ Base URL is auto-detected from the `Host` header of incoming webhooks (Tailscale
 
 Defined in `openclaw.plugin.json`. Key options:
 - `devAgentId`, `linearApiKey`, `linearWebhookSecret` — core setup
-- `defaultDir`/`repoByTeam`/`repoByProject` — repo mapping
+- `repoByTeam`/`repoByProject` — repo mapping
 - `delegateOnCreate`/`startOnCreate` — issue policies
 - `enableAgentApi` (default: true) — enable/disable API proxy
 - `apiBaseUrl` — override auto-detected base URL

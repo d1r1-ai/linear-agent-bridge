@@ -22,7 +22,6 @@ export function normalizeCfg(
     notifyAccountId: readCfgString(cfg, "notifyAccountId"),
     repoByTeam: readCfgMap(cfg, "repoByTeam"),
     repoByProject: readCfgMap(cfg, "repoByProject"),
-    defaultDir: readCfgString(cfg, "defaultDir"),
     delegateOnCreate: readCfgBool(cfg, "delegateOnCreate"),
     startOnCreate: readCfgBool(cfg, "startOnCreate"),
     externalUrlBase: readCfgString(cfg, "externalUrlBase"),

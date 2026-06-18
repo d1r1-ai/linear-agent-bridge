@@ -69,10 +69,6 @@
         },
         "description": "Map Linear project keys to repository directories"
       },
-      "defaultDir": {
-        "type": "string",
-        "description": "Default repository directory when no team/project mapping matches"
-      },
       "delegateOnCreate": {
         "type": "boolean",
         "description": "Auto-delegate issues to the app user on session create (default: false)"

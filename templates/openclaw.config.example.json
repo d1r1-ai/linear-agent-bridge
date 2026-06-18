@@ -34,8 +34,7 @@
           "delegateOnCreate": false,
           "startOnCreate": false,
           "strictAddressing": false,
-          "apiBaseUrl": "https://linear.example.com/plugins/linear/api",
-          "defaultDir": "/home/openclaw/code/main-repo"
+          "apiBaseUrl": "https://linear.example.com/plugins/linear/api"
         }
       }
     }

@@ -50,8 +50,7 @@ Start from `templates/openclaw.config.example.json` and adjust:
 - `devAgentId`: OpenClaw agent id that should handle Linear work.
 - `linearOauthRedirectUri`: public HTTPS callback URL.
 - `apiBaseUrl`: public HTTPS URL for the agent API proxy.
-- `defaultDir`: fallback local working directory.
-- `repoByTeam` / `repoByProject`: optional repository routing.
+- `repoByTeam` / `repoByProject`: optional repository routing. If no mapping matches, the agent is told to read the repository from the Linear issue itself (description, labels, or accepted research plan) and to ask the manager when ownership is unclear.
 
 Recommended lifecycle-safe flags:
 

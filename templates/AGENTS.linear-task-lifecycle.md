@@ -3,6 +3,7 @@
 These rules apply when a task arrives from Linear or when work is tracked in Linear.
 
 - Treat Linear as the source of truth for repository work. If code, docs, or spec work has no Linear issue, create one before implementation.
+- Determine repositories only from explicit issue metadata, repo labels, accepted research plans, repository URLs, or manager input. If repository ownership is unclear, ask; do not guess from local keyword matches or default directories.
 - Handle assigned issues by highest-progress state first: `In Progress` and `Final Review` follow-up, then `Research Review` with manager comments, then `Research`, then `Backlog`/`Todo`.
 - Treat `Backlog` as intake-only when the task is assigned or delegated to the agent. Inspect only enough context to clarify scope, improve the title/description/acceptance criteria/repository context, add missing labels and estimate, move the issue to `Todo`, post a short intake summary, unassign yourself, and stop.
 - Treat `Todo` as manager-owned. Do not automatically take, self-assign, or move `Todo` issues to `Research` unless the manager explicitly asks.
